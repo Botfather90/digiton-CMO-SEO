@@ -1,0 +1,39 @@
+# Environment & Secrets
+.env
+.env.local
+.env.production
+
+# Google OAuth Credentials
+client_secret*.json
+credentials.json
+token.json
+
+# Node
+node_modules/
+package-lock.json
+
+# Next.js build output
+.next/
+out/
+
+# Cloned / embedded repos (skills collections)
+agent-skills/
+agent-swarm/
+antigravity-awesome-skills/
+awesome-agent-skills/
+claude-cookbooks/
+everything-claude-code/
+get-shit-done/
+ralph/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+antigravity-swarm/

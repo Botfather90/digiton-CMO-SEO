@@ -28,6 +28,21 @@ interface VercelApp {
   framework: string;
   repo: string;
   status: "ready" | "error" | "building";
+  updatedAt?: string;
+}
+
+interface GitHubRepo {
+  name: string;
+  fullName: string;
+  private: boolean;
+  description: string;
+  language: string;
+  homepage: string;
+  url: string;
+  size: number;
+  createdAt: string;
+  updatedAt: string;
+  pushedAt: string;
 }
 
 interface Agent {
@@ -80,41 +95,7 @@ interface ChatMessage {
   ts: number;
 }
 
-/* ── VERCEL DEPLOYED APPS ── */
-const VERCEL_APPS: VercelApp[] = [
-  { name: "Digiton Social Studio", url: "medical-studio.vercel.app", framework: "vite", repo: "medical-family-social-media-studio", status: "ready" },
-  { name: "Construction Dev Portugal", url: "construction-dev-portugal.vercel.app", framework: "nextjs", repo: "construction-dev-portugal", status: "ready" },
-  { name: "Medical Family Social Engine", url: "medical-family-social-engine-brandons-projects-e64ccab1.vercel.app", framework: "vite", repo: "Medical-Family-Social-Engine-Generator-", status: "ready" },
-  { name: "Medical Family", url: "medical-family-brandons-projects-e64ccab1.vercel.app", framework: "vite", repo: "Medical-Family-website", status: "ready" },
-  { name: "AulaNautica Pilot", url: "aulanautica-pilot.vercel.app", framework: "nextjs", repo: "aulanautica-pilot", status: "ready" },
-  { name: "AulaNautica Platform", url: "aulanautica-platform.vercel.app", framework: "nextjs", repo: "aulanautica-pilot", status: "ready" },
-  { name: "AulaNautica Website", url: "aulanautica-website.vercel.app", framework: "nextjs", repo: "aulanautica-pilot", status: "ready" },
-  { name: "Medical Family Website", url: "medical-family-website.vercel.app", framework: "nextjs", repo: "Medical-Family-website", status: "ready" },
-  { name: "EstudYate", url: "estudyate.vercel.app", framework: "vite", repo: "EstudYateAI", status: "ready" },
-  { name: "SUI Arena", url: "sui-arena-one.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "Digiton Meet", url: "digiton-meet.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "SuiPilot", url: "suipilot.vercel.app", framework: "nextjs", repo: "suipilot", status: "ready" },
-  { name: "Digiton Website", url: "digiton-website.vercel.app", framework: "static", repo: "1m", status: "ready" },
-  { name: "Digiton Content Engine", url: "digiton-content-engine.vercel.app", framework: "nextjs", repo: "digiton-content-engine", status: "ready" },
-  { name: "Digiton.ai", url: "digiton.ai", framework: "static", repo: "Digiton.ai", status: "ready" },
-  { name: "Digiton Globe", url: "digiton-globe.vercel.app", framework: "static", repo: "Digiton-globe", status: "ready" },
-  { name: "AgentFlow", url: "agentflow-repo.vercel.app", framework: "nextjs", repo: "agentflow", status: "ready" },
-  { name: "HSA Platform", url: "hsa-platform.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "Areti Health Portal", url: "app-lovat-mu-73.vercel.app", framework: "nextjs", repo: "areti-health-portal", status: "ready" },
-  { name: "Joseph AI", url: "app-tau-green-91.vercel.app", framework: "nextjs", repo: "joseph-ai", status: "ready" },
-  { name: "Social Sniper", url: "social-sniper-psi.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "1M", url: "1m-brandons-projects-e64ccab1.vercel.app", framework: "vite", repo: "1m", status: "ready" },
-  { name: "Command Center", url: "command-center-alpha-tawny.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "AgentFlow (Original)", url: "agentflow-theta.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "GrantGravity", url: "grantgravity.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "CreatorStack", url: "creatorstack-theta.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-  { name: "99", url: "99.vercel.app", framework: "vite", repo: "99", status: "ready" },
-  { name: "1-1", url: "1-1.vercel.app", framework: "vite", repo: "1-1", status: "ready" },
-  { name: "Monita", url: "monita.vercel.app", framework: "vite", repo: "", status: "ready" },
-  { name: "Digiton Case Study Engine", url: "digiton-case-study-engine.vercel.app", framework: "vite", repo: "", status: "ready" },
-  { name: "Digiton Monitor", url: "digiton-monitor.vercel.app", framework: "static", repo: "", status: "ready" },
-  { name: "Digiton Pulse", url: "digiton-pulse.vercel.app", framework: "nextjs", repo: "", status: "ready" },
-];
+/* ── VERCEL APPS (fetched live from API) ── */
 
 const FRAMEWORK_COLORS: Record<string, string> = {
   nextjs: "#0070f3",
@@ -297,6 +278,11 @@ export default function GravityClaw() {
   const [chatLoading, setChatLoading] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
+  /* Live apps & repos */
+  const [liveApps, setLiveApps] = useState<VercelApp[]>([]);
+  const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
+  const [appsLastFetched, setAppsLastFetched] = useState<string>("");
+
   /* Skills state */
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillSearch, setSkillSearch] = useState("");
@@ -350,12 +336,25 @@ export default function GravityClaw() {
     } catch { /* silent */ }
   }, []);
 
+  /* ── LIVE APPS FETCHER ── */
+  const fetchLiveApps = useCallback(async () => {
+    try {
+      const r = await fetch("/api/apps");
+      const d = await r.json();
+      if (d.vercelApps) setLiveApps(d.vercelApps);
+      if (d.githubRepos) setGithubRepos(d.githubRepos);
+      if (d.fetchedAt) setAppsLastFetched(d.fetchedAt);
+    } catch { /* silent */ }
+  }, []);
+
   /* ── EFFECTS ── */
   useEffect(() => {
     fetchAgents();
+    fetchLiveApps();
     const iv = setInterval(fetchAgents, 15000);
-    return () => clearInterval(iv);
-  }, [fetchAgents]);
+    const iv2 = setInterval(fetchLiveApps, 60000);
+    return () => { clearInterval(iv); clearInterval(iv2); };
+  }, [fetchAgents, fetchLiveApps]);
 
   useEffect(() => {
     if (tab === "files") fetchFiles(filePath.join("/"));
@@ -427,6 +426,7 @@ export default function GravityClaw() {
   const renderOverview = () => {
     const onlineCount = agents.filter((a) => a.status === "online").length;
     const heartbeats = agents.filter((a) => a.hasHeartbeat).length;
+    const VERCEL_APPS = liveApps;
 
     return (
       <div className="tab-content" key="overview">
@@ -437,15 +437,12 @@ export default function GravityClaw() {
             <div className="value accent">{onlineCount}/{agents.length}</div>
           </div>
           <div className="card card-compact metric">
-            <div className="label">Gateway</div>
-            <div className="value success" style={{ fontSize: 24 }}>
-              <span className="status-dot" style={{ marginRight: 8 }} />
-              Online
-            </div>
+            <div className="label">Vercel Apps</div>
+            <div className="value accent">{liveApps.length}</div>
           </div>
           <div className="card card-compact metric">
-            <div className="label">Sessions</div>
-            <div className="value">{agents.filter((a) => a.hasSessions).length}</div>
+            <div className="label">GitHub Repos</div>
+            <div className="value">{githubRepos.length}</div>
           </div>
           <div className="card card-compact metric">
             <div className="label">Heartbeats</div>
@@ -1025,6 +1022,7 @@ export default function GravityClaw() {
   const [appsFramework, setAppsFramework] = useState<string>("all");
 
   const renderApps = () => {
+    const VERCEL_APPS = liveApps;
     const filtered = VERCEL_APPS.filter((app) => {
       const matchesSearch = app.name.toLowerCase().includes(appsSearch.toLowerCase()) ||
         app.url.toLowerCase().includes(appsSearch.toLowerCase()) ||

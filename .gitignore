@@ -2,11 +2,16 @@
 .env
 .env.local
 .env.production
+mcp_config.json
 
 # Google OAuth Credentials
 client_secret*.json
 credentials.json
 token.json
+
+# SEO Cron Data (contains tracking state)
+seo-outreach-log.json
+seo-rank-history.json
 
 # Node
 node_modules/

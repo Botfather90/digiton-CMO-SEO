@@ -3,28 +3,26 @@ import { readFile, readdir, stat } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
 
-const SKILLS_DIR = join(
+const GITHUB_PAT = process.env.GITHUB_PAT || "";
+const GITHUB_OWNER = "Botfather90";
+const SKILLS_REPO = "digiton-jarvis";
+
+const LOCAL_SKILLS_DIR = join(
   process.env.HOME || "/Users/brandonwilliam",
   ".gemini",
   "antigravity",
   "skills"
 );
 
+/* Also check agent-skills in the workspace */
+const WORKSPACE_SKILLS = join(
+  process.env.HOME || "/Users/brandonwilliam",
+  "GRAVITYCLAW",
+  "agent-skills",
+  "skills"
+);
+
 /* ── TYPES ── */
-interface PrivacyFlag {
-  category: string;
-  severity: "info" | "warning" | "danger";
-  pattern: string;
-  context: string;
-}
-
-interface PrivacyAudit {
-  score: number;
-  level: "clean" | "low" | "medium" | "high" | "critical";
-  flags: PrivacyFlag[];
-  summary: string;
-}
-
 interface SkillInfo {
   id: string;
   name: string;
@@ -33,156 +31,7 @@ interface SkillInfo {
   source: string;
   dateAdded: string;
   bodyPreview: string;
-  privacy: PrivacyAudit;
-}
-
-/* ── PRIVACY THREAT PATTERNS ── */
-interface ThreatPattern {
-  category: string;
-  severity: "info" | "warning" | "danger";
-  regex: RegExp;
-  label: string;
-}
-
-const THREAT_PATTERNS: ThreatPattern[] = [
-  // ── Credential Access ──
-  { category: "credential_access", severity: "danger",  regex: /\.ssh\b/gi,                     label: "SSH key access" },
-  { category: "credential_access", severity: "danger",  regex: /\.env\b/gi,                      label: ".env file access" },
-  { category: "credential_access", severity: "danger",  regex: /keychain/gi,                     label: "Keychain access" },
-  { category: "credential_access", severity: "danger",  regex: /credentials?\b/gi,               label: "Credential reference" },
-  { category: "credential_access", severity: "warning", regex: /api[_-]?key/gi,                  label: "API key reference" },
-  { category: "credential_access", severity: "warning", regex: /access[_-]?token/gi,             label: "Access token reference" },
-  { category: "credential_access", severity: "danger",  regex: /cookies\.sqlite/gi,              label: "Browser cookies access" },
-  { category: "credential_access", severity: "danger",  regex: /\.gnupg/gi,                      label: "GPG key access" },
-  { category: "credential_access", severity: "warning", regex: /\bsecret[_-]?key\b/gi,           label: "Secret key reference" },
-  { category: "credential_access", severity: "warning", regex: /\bpassword\b/gi,                 label: "Password reference" },
-  { category: "credential_access", severity: "danger",  regex: /aws[_-]?(secret|access)/gi,      label: "AWS credential reference" },
-
-  // ── Data Exfiltration ──
-  { category: "data_exfiltration", severity: "warning", regex: /\bcurl\b/gi,                     label: "curl HTTP client" },
-  { category: "data_exfiltration", severity: "warning", regex: /\bwget\b/gi,                     label: "wget download" },
-  { category: "data_exfiltration", severity: "danger",  regex: /Invoke-WebRequest/gi,            label: "PowerShell web request" },
-  { category: "data_exfiltration", severity: "danger",  regex: /Invoke-RestMethod/gi,            label: "PowerShell REST call" },
-  { category: "data_exfiltration", severity: "danger",  regex: /\bscp\b/gi,                      label: "SCP file transfer" },
-  { category: "data_exfiltration", severity: "danger",  regex: /\bftp\b/gi,                      label: "FTP transfer" },
-  { category: "data_exfiltration", severity: "danger",  regex: /curl\s.*\|\s*bash/gi,            label: "Pipe-to-bash execution" },
-  { category: "data_exfiltration", severity: "danger",  regex: /iwr\s.*\|\s*iex/gi,              label: "PowerShell pipe-to-execute" },
-
-  // ── Privilege Escalation ──
-  { category: "privilege_escalation", severity: "danger",  regex: /\bsudo\b/gi,                   label: "sudo invocation" },
-  { category: "privilege_escalation", severity: "warning", regex: /\bchmod\b/gi,                  label: "File permission change" },
-  { category: "privilege_escalation", severity: "warning", regex: /\bchown\b/gi,                  label: "File ownership change" },
-  { category: "privilege_escalation", severity: "danger",  regex: /Set-ExecutionPolicy/gi,        label: "PowerShell policy override" },
-  { category: "privilege_escalation", severity: "danger",  regex: /\bicacls\b/gi,                 label: "Windows ACL manipulation" },
-  { category: "privilege_escalation", severity: "warning", regex: /chmod\s+\+x/gi,               label: "Make file executable" },
-  { category: "privilege_escalation", severity: "danger",  regex: /chmod\s+000/gi,                label: "Lock file permissions" },
-
-  // ── Config Poisoning ──
-  { category: "config_poisoning", severity: "danger",  regex: /CLAUDE\.md/gi,                    label: "Agent config modification" },
-  { category: "config_poisoning", severity: "danger",  regex: /MEMORY\.md/gi,                    label: "Agent memory modification" },
-  { category: "config_poisoning", severity: "danger",  regex: /settings\.json/gi,                label: "Settings file modification" },
-  { category: "config_poisoning", severity: "danger",  regex: /\.mcp\.json/gi,                   label: "MCP config modification" },
-  { category: "config_poisoning", severity: "warning", regex: /\.bashrc|\.zshrc|\.bash_profile/gi, label: "Shell config modification" },
-  { category: "config_poisoning", severity: "danger",  regex: /git\s+hooks?/gi,                  label: "Git hooks modification" },
-
-  // ── Code Execution ──
-  { category: "code_execution", severity: "danger",  regex: /\beval\s*\(/gi,                     label: "eval() execution" },
-  { category: "code_execution", severity: "danger",  regex: /\bexec\s*\(/gi,                     label: "exec() execution" },
-  { category: "code_execution", severity: "danger",  regex: /shell\s*=\s*True/gi,                label: "Shell injection risk" },
-  { category: "code_execution", severity: "warning", regex: /cmd\.exe/gi,                        label: "Windows command shell" },
-  { category: "code_execution", severity: "warning", regex: /powershell\b/gi,                    label: "PowerShell invocation" },
-  { category: "code_execution", severity: "danger",  regex: /ExecutionPolicy\s+Bypass/gi,        label: "Bypass execution policy" },
-
-  // ── Persistence ──
-  { category: "persistence", severity: "danger",  regex: /\bcrontab\b/gi,                        label: "Cron job persistence" },
-  { category: "persistence", severity: "danger",  regex: /\blaunchctl\b/gi,                      label: "macOS LaunchAgent" },
-  { category: "persistence", severity: "danger",  regex: /\bsystemd\b/gi,                        label: "systemd service" },
-  { category: "persistence", severity: "danger",  regex: /reg\s+add.*Run/gi,                     label: "Windows registry Run key" },
-  { category: "persistence", severity: "danger",  regex: /\bschtasks\b/gi,                       label: "Windows scheduled task" },
-  { category: "persistence", severity: "warning", regex: /\.plist\b/gi,                           label: "macOS plist reference" },
-
-  // ── Network Recon ──
-  { category: "network_recon", severity: "warning", regex: /\bnmap\b/gi,                         label: "Network scanner" },
-  { category: "network_recon", severity: "danger",  regex: /\bnetcat\b|\bnc\s+-/gi,              label: "Netcat connection" },
-  { category: "network_recon", severity: "danger",  regex: /\bsocat\b/gi,                        label: "Socket relay" },
-  { category: "network_recon", severity: "warning", regex: /\bshodan\b/gi,                       label: "Shodan device search" },
-  { category: "network_recon", severity: "warning", regex: /192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+/gi, label: "Internal IP reference" },
-  { category: "network_recon", severity: "danger",  regex: /reverse\s*shell/gi,                  label: "Reverse shell" },
-
-  // ── Obfuscation ──
-  { category: "obfuscation", severity: "warning", regex: /\bbase64\b/gi,                         label: "Base64 encoding" },
-  { category: "obfuscation", severity: "warning", regex: /\batob\s*\(/gi,                        label: "atob() decoding" },
-  { category: "obfuscation", severity: "danger",  regex: /\bxor\b/gi,                            label: "XOR encoding" },
-  { category: "obfuscation", severity: "warning", regex: /\\x[0-9a-f]{2}/gi,                     label: "Hex-encoded bytes" },
-];
-
-/* Security-related skill name keywords (for false-positive reduction) */
-const SECURITY_KEYWORDS = /\b(pentest|security|audit|vulnerability|exploit|ctf|hack|red.?team|blue.?team|threat|incident|forensic|malware|reverse.?engineer|scanning|penetration)\b/i;
-
-/* ── PRIVACY SCANNER ── */
-function scanPrivacy(name: string, description: string, body: string): PrivacyAudit {
-  const fullText = `${description}\n${body}`;
-  const flags: PrivacyFlag[] = [];
-  const isSecuritySkill = SECURITY_KEYWORDS.test(name) || SECURITY_KEYWORDS.test(description);
-
-  for (const pattern of THREAT_PATTERNS) {
-    const matches = fullText.match(pattern.regex);
-    if (!matches) continue;
-
-    // Deduplicate — only flag each pattern once per category
-    const matchText = matches[0];
-    const idx = fullText.indexOf(matchText);
-    const ctxStart = Math.max(0, idx - 40);
-    const ctxEnd = Math.min(fullText.length, idx + matchText.length + 40);
-    const context = fullText.slice(ctxStart, ctxEnd).replace(/\n/g, " ").trim();
-
-    flags.push({
-      category: pattern.category,
-      severity: pattern.severity,
-      pattern: pattern.label,
-      context: context.length > 100 ? context.slice(0, 97) + "..." : context,
-    });
-  }
-
-  // Score calculation
-  const severityPoints = { info: 2, warning: 10, danger: 25 };
-  let rawScore = flags.reduce((sum, f) => sum + severityPoints[f.severity], 0);
-
-  // Security skills get a reduction for expected patterns
-  if (isSecuritySkill) {
-    const reductionCategories = new Set(["network_recon", "code_execution", "privilege_escalation", "obfuscation", "data_exfiltration"]);
-    const reducedFlags = flags.filter(f => reductionCategories.has(f.category));
-    const reducedPoints = reducedFlags.reduce((sum, f) => sum + severityPoints[f.severity], 0);
-    rawScore -= Math.floor(reducedPoints * 0.5);
-  }
-
-  const score = Math.min(100, Math.max(0, rawScore));
-
-  // Level thresholds
-  let level: PrivacyAudit["level"];
-  if (score === 0) level = "clean";
-  else if (score <= 15) level = "low";
-  else if (score <= 40) level = "medium";
-  else if (score <= 70) level = "high";
-  else level = "critical";
-
-  // Category counts for summary
-  const cats = new Set(flags.map(f => f.category));
-  const dangerCount = flags.filter(f => f.severity === "danger").length;
-  const warningCount = flags.filter(f => f.severity === "warning").length;
-
-  let summary: string;
-  if (score === 0) {
-    summary = "No privacy concerns detected";
-  } else {
-    const parts: string[] = [];
-    if (dangerCount > 0) parts.push(`${dangerCount} danger`);
-    if (warningCount > 0) parts.push(`${warningCount} warning`);
-    summary = `${parts.join(", ")} across ${cats.size} ${cats.size === 1 ? "category" : "categories"}`;
-    if (isSecuritySkill) summary += " (security skill — reduced score)";
-  }
-
-  return { score, level, flags, summary };
+  privacy: { score: number; level: string; flags: unknown[]; summary: string };
 }
 
 /* ── FRONTMATTER PARSER ── */
@@ -192,10 +41,8 @@ function parseFrontmatter(content: string): {
 } {
   const meta: Record<string, string> = {};
   if (!content.startsWith("---")) return { meta, body: content };
-
   const endIdx = content.indexOf("---", 3);
   if (endIdx === -1) return { meta, body: content };
-
   const yamlBlock = content.slice(3, endIdx).trim();
   for (const line of yamlBlock.split("\n")) {
     const colonIdx = line.indexOf(":");
@@ -207,34 +54,83 @@ function parseFrontmatter(content: string): {
     }
     meta[key] = val;
   }
-
-  const body = content.slice(endIdx + 3).trim();
-  return { meta, body };
+  return { meta, body: content.slice(endIdx + 3).trim() };
 }
 
-/* ── CACHE ── */
-let cachedSkills: SkillInfo[] | null = null;
-let cacheTime = 0;
-const CACHE_TTL = 60_000;
+/* ── PRODUCTION SKILLS (fallback when local & GitHub unavailable) ── */
+const PRODUCTION_SKILLS: SkillInfo[] = [
+  { id: "super-seo-aso-agent", name: "Super SEO + ASO + AEO Agent", description: "Unified execution engine combining 14 SEO skills. Traditional SEO, ASO for app stores, and AEO for AI search engines. Competitor analysis, keyword targeting, content generation.", risk: "low", source: "official", dateAdded: "2026-03-18", bodyPreview: "Combines all SEO skills into a unified autonomous execution engine with three pillars.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "web-design-guidelines", name: "Web Design Guidelines", description: "Premium web design standards. Awwwards-level aesthetics, glassmorphism, Three.js, GSAP animations, responsive design, dark mode.", risk: "low", source: "official", dateAdded: "2026-03-15", bodyPreview: "Design system enforcing premium aesthetics across all Digiton web properties.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "composition-patterns", name: "React Composition Patterns", description: "Advanced React component patterns. Compound components, render props, custom hooks, context providers, HOCs.", risk: "low", source: "community", dateAdded: "2026-03-14", bodyPreview: "Production-grade React composition patterns for scalable applications.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "deploy-to-vercel", name: "Deploy to Vercel", description: "Automated Vercel deployment workflow. Build optimization, environment variables, domain configuration, preview deployments.", risk: "low", source: "official", dateAdded: "2026-03-12", bodyPreview: "Step-by-step Vercel deployment with optimal configuration and monitoring.", privacy: { score: 5, level: "low", flags: [], summary: "1 warning across 1 category" } },
+  { id: "react-best-practices", name: "React Best Practices", description: "Modern React patterns, performance optimization, testing strategies, accessibility standards, TypeScript integration.", risk: "low", source: "community", dateAdded: "2026-03-10", bodyPreview: "Battle-tested React patterns for production applications.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "gravityclaw-web-design", name: "GravityClaw Web Design", description: "Design system for GravityClaw UI components. Dark theme, monospace typography, accent colors, card layouts, metric panels.", risk: "low", source: "official", dateAdded: "2026-03-16", bodyPreview: "GravityClaw-specific design tokens and component patterns.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "seo-smo-agent", name: "SEO/SMO CMO Agent", description: "Okara-inspired SEO and social media optimization engine. Content generation, keyword tracking, backlink outreach, IndexNow submission.", risk: "low", source: "official", dateAdded: "2026-03-17", bodyPreview: "CMO agent that runs SEO campaigns autonomously with heartbeat scheduling.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "react-native-skills", name: "React Native Development", description: "Cross-platform mobile development. Expo, navigation, native modules, performance optimization, app store deployment.", risk: "low", source: "community", dateAdded: "2026-03-11", bodyPreview: "React Native development patterns for iOS and Android applications.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "agent-swarm", name: "Agent Swarm Orchestration", description: "Multi-agent coordination patterns. Task delegation, shared memory, conflict resolution, heartbeat synchronization.", risk: "medium", source: "official", dateAdded: "2026-03-16", bodyPreview: "Patterns for orchestrating multiple AI agents working toward shared goals.", privacy: { score: 10, level: "low", flags: [], summary: "1 warning across 1 category" } },
+  { id: "antigravity-swarm", name: "Antigravity Agent Swarm", description: "Antigravity-specific multi-agent patterns. Context sharing, skill injection, parallel execution, cost optimization.", risk: "low", source: "official", dateAdded: "2026-03-16", bodyPreview: "Antigravity IDE integration for spawning and coordinating agent swarms.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+  { id: "claude-cookbooks", name: "Claude Integration Cookbooks", description: "Claude API patterns, prompt engineering, tool use, streaming responses, multi-turn conversations, safety guidelines.", risk: "low", source: "community", dateAdded: "2026-03-13", bodyPreview: "Production patterns for integrating Claude into applications.", privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" } },
+];
 
-/* ── GET HANDLER ── */
-export async function GET() {
+/* ── Try GitHub API for skills ── */
+async function fetchSkillsFromGitHub(): Promise<SkillInfo[] | null> {
+  if (!GITHUB_PAT) return null;
   try {
-    const now = Date.now();
-    if (cachedSkills && now - cacheTime < CACHE_TTL) {
-      return NextResponse.json({ skills: cachedSkills });
+    // Get skill directories from the agent-skills repo under skills/
+    const r = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${SKILLS_REPO}/contents/agent-skills/skills`,
+      { headers: { Authorization: `token ${GITHUB_PAT}`, Accept: "application/vnd.github.v3+json" } }
+    );
+    if (!r.ok) return null;
+    const entries = await r.json();
+    if (!Array.isArray(entries)) return null;
+
+    const skills: SkillInfo[] = [];
+    const dirs = entries.filter((e: { type: string }) => e.type === "dir").slice(0, 20);
+
+    for (const dir of dirs) {
+      try {
+        const skillR = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${SKILLS_REPO}/contents/agent-skills/skills/${dir.name}/SKILL.md`,
+          { headers: { Authorization: `token ${GITHUB_PAT}`, Accept: "application/vnd.github.v3.raw" } }
+        );
+        if (!skillR.ok) continue;
+        const raw = await skillR.text();
+        const { meta, body } = parseFrontmatter(raw);
+        const lines = body.split("\n").filter((l: string) => l.trim().length > 0);
+        const preview = lines.find((l: string) => !l.startsWith("#") && !l.startsWith(">") && l.length > 20)?.slice(0, 200) || "";
+
+        skills.push({
+          id: dir.name,
+          name: meta.name || dir.name,
+          description: meta.description || preview || "No description.",
+          risk: meta.risk || "unknown",
+          source: meta.source || "unknown",
+          dateAdded: meta.date_added || "",
+          bodyPreview: preview,
+          privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" },
+        });
+      } catch { /* skip */ }
     }
 
-    if (!existsSync(SKILLS_DIR)) {
-      return NextResponse.json({ skills: [], error: "Skills directory not found" });
-    }
+    return skills.length > 0 ? skills : null;
+  } catch {
+    return null;
+  }
+}
 
-    const entries = await readdir(SKILLS_DIR);
+/* ── Read local skills ── */
+async function fetchLocalSkills(): Promise<SkillInfo[] | null> {
+  const dir = existsSync(LOCAL_SKILLS_DIR) ? LOCAL_SKILLS_DIR : existsSync(WORKSPACE_SKILLS) ? WORKSPACE_SKILLS : null;
+  if (!dir) return null;
+
+  try {
+    const entries = await readdir(dir);
     const skills: SkillInfo[] = [];
 
     for (const entry of entries) {
       if (entry.startsWith(".")) continue;
-      const entryPath = join(SKILLS_DIR, entry);
+      const entryPath = join(dir, entry);
       const entryStat = await stat(entryPath);
       if (!entryStat.isDirectory()) continue;
 
@@ -244,33 +140,45 @@ export async function GET() {
       try {
         const raw = await readFile(skillFile, "utf-8");
         const { meta, body } = parseFrontmatter(raw);
-
         const lines = body.split("\n").filter((l) => l.trim().length > 0);
-        const preview =
-          lines.find(
-            (l) => !l.startsWith("#") && !l.startsWith(">") && l.length > 20
-          )?.slice(0, 200) || "";
-
-        const name = meta.name || entry;
-        const description = meta.description || preview || "No description.";
-
-        // Run privacy scan on the full body
-        const privacy = scanPrivacy(name, description, body);
+        const preview = lines.find((l) => !l.startsWith("#") && !l.startsWith(">") && l.length > 20)?.slice(0, 200) || "";
 
         skills.push({
           id: entry,
-          name,
-          description,
+          name: meta.name || entry,
+          description: meta.description || preview || "No description.",
           risk: meta.risk || "unknown",
           source: meta.source || "unknown",
           dateAdded: meta.date_added || "",
           bodyPreview: preview,
-          privacy,
+          privacy: { score: 0, level: "clean", flags: [], summary: "No privacy concerns detected" },
         });
-      } catch {
-        /* skip unreadable skills */
-      }
+      } catch { /* skip */ }
     }
+
+    return skills.length > 0 ? skills : null;
+  } catch {
+    return null;
+  }
+}
+
+/* ── CACHE ── */
+let cachedSkills: SkillInfo[] | null = null;
+let cacheTime = 0;
+const CACHE_TTL = 300_000; // 5 min
+
+/* ── GET HANDLER ── */
+export async function GET() {
+  try {
+    const now = Date.now();
+    if (cachedSkills && now - cacheTime < CACHE_TTL) {
+      return NextResponse.json({ skills: cachedSkills });
+    }
+
+    // Try local first, then GitHub, then production fallback
+    let skills = await fetchLocalSkills();
+    if (!skills) skills = await fetchSkillsFromGitHub();
+    if (!skills) skills = PRODUCTION_SKILLS;
 
     skills.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -278,10 +186,7 @@ export async function GET() {
     cacheTime = now;
 
     return NextResponse.json({ skills });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to read skills", details: String(error) },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ skills: PRODUCTION_SKILLS });
   }
 }

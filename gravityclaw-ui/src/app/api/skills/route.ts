@@ -9,12 +9,12 @@ const SKILLS_REPO = "digiton-jarvis";
 
 const LOCAL_SKILLS_DIR = join(
   process.env.HOME || "/Users/brandonwilliam",
-  ".gemini",
-  "antigravity",
+  "GRAVITYCLAW",
+  "antigravity-awesome-skills",
   "skills"
 );
 
-/* Also check agent-skills in the workspace */
+/* Also check agent-skills in the workspace (9 custom skills) */
 const WORKSPACE_SKILLS = join(
   process.env.HOME || "/Users/brandonwilliam",
   "GRAVITYCLAW",

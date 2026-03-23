@@ -290,6 +290,12 @@ export default function GravityClaw() {
   const [privacyFilter, setPrivacyFilter] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
 
+  /* SEO + Lighthouse state */
+  const [seoStats, setSeoStats] = useState<Record<string, any> | null>(null);
+  const [lighthouseScores, setLighthouseScores] = useState<{ performance: number; accessibility: number; bestPractices: number; seo: number } | null>(null);
+  const [lighthouseLoading, setLighthouseLoading] = useState(false);
+  const [lighthouseUrl, setLighthouseUrl] = useState("https://www.digiton.ai");
+
   /* ── DATA FETCHERS ── */
   const fetchAgents = useCallback(async () => {
     try {
@@ -347,30 +353,55 @@ export default function GravityClaw() {
     } catch { /* silent */ }
   }, []);
 
+  /* ── SEO STATS FETCHER ── */
+  const fetchSeoStats = useCallback(async () => {
+    try {
+      const r = await fetch("/api/seo-stats");
+      const d = await r.json();
+      if (!d.error) setSeoStats(d);
+    } catch { /* silent */ }
+  }, []);
+
+  /* ── LIGHTHOUSE FETCHER ── */
+  const runLighthouse = useCallback(async (url?: string) => {
+    setLighthouseLoading(true);
+    try {
+      const targetUrl = url || lighthouseUrl;
+      const r = await fetch(`/api/lighthouse?url=${encodeURIComponent(targetUrl)}`);
+      const d = await r.json();
+      if (d.scores) setLighthouseScores(d.scores);
+    } catch { /* silent */ }
+    setLighthouseLoading(false);
+  }, [lighthouseUrl]);
+
   /* ── EFFECTS ── */
   useEffect(() => {
+    if (!authed) return; // Don't fetch until authenticated
     fetchAgents();
     fetchLiveApps();
+    fetchSeoStats();
+    fetchSkills();
     const iv = setInterval(fetchAgents, 15000);
     const iv2 = setInterval(fetchLiveApps, 60000);
-    return () => { clearInterval(iv); clearInterval(iv2); };
-  }, [fetchAgents, fetchLiveApps]);
+    const iv3 = setInterval(fetchSeoStats, 300000); // every 5 min
+    return () => { clearInterval(iv); clearInterval(iv2); clearInterval(iv3); };
+  }, [authed, fetchAgents, fetchLiveApps, fetchSeoStats, fetchSkills]);
 
   useEffect(() => {
-    if (tab === "files") fetchFiles(filePath.join("/"));
-  }, [tab, filePath, fetchFiles]);
+    if (authed && tab === "files") fetchFiles(filePath.join("/"));
+  }, [authed, tab, filePath, fetchFiles]);
 
   useEffect(() => {
-    if (tab === "logs") fetchLogs(logType);
-  }, [tab, logType, fetchLogs]);
+    if (authed && tab === "logs") fetchLogs(logType);
+  }, [authed, tab, logType, fetchLogs]);
 
   useEffect(() => {
-    if (tab === "config") fetchConfig();
-  }, [tab, fetchConfig]);
+    if (authed && tab === "config") fetchConfig();
+  }, [authed, tab, fetchConfig]);
 
   useEffect(() => {
-    if (tab === "skills" && skills.length === 0) fetchSkills();
-  }, [tab, skills.length, fetchSkills]);
+    if (authed && tab === "skills" && skills.length === 0) fetchSkills();
+  }, [authed, tab, skills.length, fetchSkills]);
 
   /* ── FILE NAVIGATION ── */
   const navigateFile = (name: string, isDir: boolean) => {
@@ -428,6 +459,12 @@ export default function GravityClaw() {
     const heartbeats = agents.filter((a) => a.hasHeartbeat).length;
     const VERCEL_APPS = liveApps;
 
+    const scoreColor = (score: number) => {
+      if (score >= 90) return "#22c55e";
+      if (score >= 50) return "#f59e0b";
+      return "#ef4444";
+    };
+
     return (
       <div className="tab-content" key="overview">
         {/* Metric strip */}
@@ -445,10 +482,95 @@ export default function GravityClaw() {
             <div className="value">{githubRepos.length}</div>
           </div>
           <div className="card card-compact metric">
-            <div className="label">Heartbeats</div>
-            <div className="value">{heartbeats}/{agents.length}</div>
+            <div className="label">Skills Loaded</div>
+            <div className="value">{skills.length || "—"}</div>
           </div>
         </div>
+
+        {/* Lighthouse Scores */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div className="section-label" style={{ marginBottom: 0 }}>Lighthouse Audit</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="text"
+                value={lighthouseUrl}
+                onChange={(e) => setLighthouseUrl(e.target.value)}
+                placeholder="https://your-site.com"
+                style={{
+                  padding: "6px 12px", fontSize: 12, fontFamily: "var(--font-mono)",
+                  background: "var(--surface-2)", border: "1px solid var(--border-subtle)",
+                  borderRadius: 8, color: "var(--text-secondary)", outline: "none", width: 240,
+                }}
+              />
+              <button
+                onClick={() => runLighthouse()}
+                disabled={lighthouseLoading}
+                style={{
+                  background: lighthouseLoading ? "var(--surface-2)" : "var(--accent)",
+                  border: "none", color: lighthouseLoading ? "var(--text-tertiary)" : "#000",
+                  fontSize: 11, fontWeight: 600, padding: "7px 16px",
+                  borderRadius: 999, cursor: lighthouseLoading ? "wait" : "pointer",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {lighthouseLoading ? "Running..." : "Run Audit"}
+              </button>
+            </div>
+          </div>
+          <div className="bento bento-4">
+            {(["performance", "accessibility", "bestPractices", "seo"] as const).map((key) => {
+              const labels: Record<string, string> = { performance: "Performance", accessibility: "Accessibility", bestPractices: "Best Practices", seo: "SEO" };
+              const score = lighthouseScores?.[key];
+              return (
+                <div className="card card-compact metric" key={key}>
+                  <div className="label">{labels[key]}</div>
+                  <div className="value" style={{ color: score != null ? scoreColor(score) : "var(--text-tertiary)" }}>
+                    {score != null ? score : "—"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SEO Intelligence */}
+        {seoStats && (
+          <div style={{ marginBottom: 24 }}>
+            <div className="section-label">SEO Intelligence</div>
+            <div className="bento bento-4" style={{ marginBottom: 12 }}>
+              <div className="card card-compact metric">
+                <div className="label">Keywords Tracked</div>
+                <div className="value">{seoStats.seo?.totalKeywordsTracked || 0}</div>
+              </div>
+              <div className="card card-compact metric">
+                <div className="label">Page 1 Keywords</div>
+                <div className="value accent">{seoStats.seo?.page1Keywords || 0}</div>
+              </div>
+              <div className="card card-compact metric">
+                <div className="label">Blogs Published</div>
+                <div className="value">{seoStats.content?.publishedBlogs || 0}</div>
+              </div>
+              <div className="card card-compact metric">
+                <div className="label">Outreach Sent</div>
+                <div className="value">{seoStats.outreach?.totalSent || 0}</div>
+              </div>
+            </div>
+            {seoStats.seo?.topKeywords?.length > 0 && (
+              <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-subtle)", fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Top Ranking Keywords
+                </div>
+                {seoStats.seo.topKeywords.map((kw: { keyword: string; position: number }, i: number) => (
+                  <div key={kw.keyword} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: i < seoStats.seo.topKeywords.length - 1 ? "1px solid var(--border-subtle)" : "none" }}>
+                    <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{kw.keyword}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)", color: kw.position <= 3 ? "#22c55e" : kw.position <= 10 ? "var(--accent)" : "var(--text-tertiary)" }}>#{kw.position}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Agent cards + Intel */}
         <div className="bento bento-2-1">
@@ -481,16 +603,16 @@ export default function GravityClaw() {
             <div className="section-label">System Intel</div>
             <div className="card" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               <div>
-                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Owner</div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>Brandon William</div>
+                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Platform</div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>GravityClaw v1.0</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Gateway</div>
-                <div style={{ fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>localhost:3001</div>
+                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Agents</div>
+                <div style={{ fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{agents.length} registered ({onlineCount} online)</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Protocol</div>
-                <div style={{ fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>OpenClaw v1</div>
+                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Deployments</div>
+                <div style={{ fontSize: 13, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{liveApps.length} Vercel apps</div>
               </div>
               <div>
                 <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Runtime</div>

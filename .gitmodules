@@ -1,0 +1,6 @@
+[submodule "paperclip"]
+	path = paperclip
+	url = https://github.com/paperclipai/paperclip.git
+[submodule "money-runner"]
+	path = money-runner
+	url = https://github.com/Botfather90/money-runner.git

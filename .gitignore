@@ -16,10 +16,12 @@ seo-rank-history.json
 # Node
 node_modules/
 package-lock.json
+pnpm-lock.yaml
 
-# Next.js build output
+# Build output
 .next/
 out/
+dist/
 
 # Cloned / embedded repos (skills collections)
 agent-skills/

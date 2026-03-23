@@ -12,7 +12,7 @@ Inspired by [Okara.ai](https://okara.ai) — built for teams who want an AI CMO,
 
 ```bash
 # 1. Clone
-git clone https://github.com/Botfather90/digiton-jarvis.git gravityclaw
+git clone --recurse-submodules https://github.com/Botfather90/digiton-CMO-SEO.git gravityclaw
 cd gravityclaw
 
 # 2. Set up environment
@@ -83,9 +83,6 @@ gravityclaw/
 │   ├── server/              # Backend — agent runtime, heartbeats, API
 │   ├── packages/            # Shared types, constants, SDK
 │   └── package.json
-├── agent-skills/            # Custom agent skills
-│   ├── money-runner/        # Autonomous freelance bidding agent
-│   └── seo-smo-agent/       # SEO/SMO CMO engine (Okara-inspired)
 ├── .agents/
 │   └── workflows/
 │       └── jarvis-start.md  # Startup workflow
@@ -93,7 +90,6 @@ gravityclaw/
 ├── CTO-SOUL.md              # CTO agent personality
 ├── OPENCLAW.md              # Architecture docs
 ├── prompt.md                # Base prompt template
-├── mcp_config.json          # MCP server connections template
 ├── env.example              # API keys template
 └── .gitignore               # Excludes .env, credentials, node_modules
 ```

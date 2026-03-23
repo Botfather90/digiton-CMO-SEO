@@ -1,8 +1,8 @@
 ---
-description: Start the full JARVIS agent stack — Paperclip orchestrator + agent-swarm workers + health checks
+description: Start the full GravityClaw agent stack — Paperclip orchestrator + agent-swarm workers + health checks
 ---
 
-## Start Full JARVIS Stack
+## Start Full GravityClaw Stack
 
 ### 1. Start Paperclip (Company Orchestrator)
 // turbo
@@ -27,9 +27,6 @@ curl -s http://localhost:3100/api/health
 echo ""
 echo "--- Agent Swarm ---"
 curl -s http://localhost:3013/health 2>/dev/null || echo "Agent swarm not configured yet"
-echo ""
-echo "--- OpenClaw ---"
-openclaw doctor 2>/dev/null || echo "OpenClaw not running"
 ```
 
 ### 4. Open Paperclip Dashboard

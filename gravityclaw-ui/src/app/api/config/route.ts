@@ -9,6 +9,10 @@ const OPENCLAW_DIR = join(process.env.HOME || "/Users/brandonwilliam", ".opencla
 function buildEnvConfig() {
   const envVars = [
     { key: "GITHUB_PAT", label: "GitHub Personal Access Token", category: "Source Control" },
+    { key: "GITHUB_OWNER", label: "GitHub Owner / Org", category: "Source Control" },
+    { key: "GITHUB_REPO", label: "GitHub Repo (agent config)", category: "Source Control" },
+    { key: "WEBSITE_REPO", label: "Website Repo (blog target)", category: "Source Control" },
+    { key: "TARGET_WEBSITE_URL", label: "Target Website URL", category: "Source Control" },
     { key: "VERCEL_API_TOKEN", label: "Vercel API Token", category: "Deployment" },
     { key: "VERCEL_TEAM_ID", label: "Vercel Team ID", category: "Deployment" },
     { key: "GOOGLE_AI_API_KEY", label: "Google AI / Gemini API Key", category: "AI Models" },
@@ -50,7 +54,7 @@ function buildEnvConfig() {
 
   return {
     system: {
-      name: "GravityClaw",
+      name: "GravityClaw CMO/SEO",
       version: "1.0.0",
       runtime: "Next.js / Turbopack",
       environment: process.env.NODE_ENV || "development",
@@ -58,7 +62,7 @@ function buildEnvConfig() {
     },
     agents: {
       total: 7,
-      roles: ["JARVIS (Main)", "CMO", "CTO", "Developer", "Designer", "QA", "DevOps"],
+      roles: ["CEO", "CMO", "CTO", "Developer", "Designer", "QA", "DevOps"],
       modelProvider: process.env.GOOGLE_AI_API_KEY ? "Gemini (Google AI)" : "Not configured",
     },
     integrations: config,

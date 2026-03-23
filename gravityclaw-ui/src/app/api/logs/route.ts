@@ -5,8 +5,8 @@ import { existsSync } from "fs";
 
 const OPENCLAW_DIR = join(process.env.HOME || "/Users/brandonwilliam", ".openclaw");
 const GITHUB_PAT = process.env.GITHUB_PAT || "";
-const GITHUB_OWNER = "Botfather90";
-const GITHUB_REPO = "digiton-jarvis";
+const GITHUB_OWNER = process.env.GITHUB_OWNER || "Botfather90";
+const GITHUB_REPO = process.env.GITHUB_REPO || "digiton-jarvis";
 
 /* ── Fetch activity logs from GitHub repo data ── */
 async function fetchGitHubActivityLogs(): Promise<string> {

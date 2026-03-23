@@ -227,12 +227,11 @@ function syntaxHighlight(json: string): string {
 }
 
 function agentInitials(name: string): string {
-  if (name === "main") return "J";
   return name
     .split("-")
     .map((s) => s[0]?.toUpperCase() || "")
     .join("")
-    .slice(0, 2);
+    .slice(0, 3);
 }
 
 /* ══════════════════════════════════════════════════
@@ -586,7 +585,7 @@ export default function GravityClaw() {
                   <div className="agent-row" key={a.name}>
                     <div className="agent-avatar">{agentInitials(a.name)}</div>
                     <div className="agent-info">
-                      <div className="agent-name">{a.name === "main" ? "JARVIS" : a.name.toUpperCase()}</div>
+                      <div className="agent-name">{a.name.toUpperCase()}</div>
                       <div className="agent-role">{a.role}</div>
                     </div>
                     <div className="agent-status">
@@ -687,7 +686,7 @@ export default function GravityClaw() {
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
               <div className="agent-avatar">{agentInitials(a.name)}</div>
               <div>
-                <div className="agent-name">{a.name === "main" ? "JARVIS" : a.name.toUpperCase()}</div>
+                <div className="agent-name">{a.name.toUpperCase()}</div>
                 <div className="agent-role">{a.role}</div>
               </div>
               <div style={{ marginLeft: "auto" }}>
@@ -846,7 +845,7 @@ export default function GravityClaw() {
             <div className="empty-state">
               <div className="icon">{Icons.chat}</div>
               <h3>Start a conversation</h3>
-              <p>Send a message to the JARVIS agent via the OpenClaw gateway</p>
+              <p>Send a message to the GravityClaw agent via the AI gateway</p>
             </div>
           )}
           {chatMessages.map((m, i) => (

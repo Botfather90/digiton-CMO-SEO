@@ -1,17 +1,16 @@
-# Environment & Secrets
+# Environment & Secrets — NEVER commit these
 .env
 .env.local
 .env.production
 mcp_config.json
 
+# Separate repos (not part of this project)
+digiton-website/
+
 # Google OAuth Credentials
 client_secret*.json
 credentials.json
 token.json
-
-# SEO Cron Data (contains tracking state)
-seo-outreach-log.json
-seo-rank-history.json
 
 # Node
 node_modules/
@@ -21,15 +20,14 @@ package-lock.json
 .next/
 out/
 
-# Cloned / embedded repos (skills collections)
-agent-skills/
-agent-swarm/
+# Cloned skill collections (download separately)
 antigravity-awesome-skills/
 awesome-agent-skills/
 claude-cookbooks/
 everything-claude-code/
 get-shit-done/
 ralph/
+antigravity-swarm/
 
 # OS
 .DS_Store
@@ -41,4 +39,3 @@ Thumbs.db
 
 # Logs
 *.log
-antigravity-swarm/

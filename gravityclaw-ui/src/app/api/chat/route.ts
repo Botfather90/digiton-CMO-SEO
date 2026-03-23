@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 
 const GEMINI_API_KEY = process.env.GOOGLE_AI_API_KEY || "";
 
-const SYSTEM_PROMPT = `You are JARVIS, the autonomous AI operations agent for GravityClaw — a multi-agent platform for digital businesses.
+const SYSTEM_PROMPT = `You are the GravityClaw AI operations agent — a multi-agent platform for digital businesses.
 
 Your capabilities:
-- Manage and coordinate AI agents (CMO, CTO, Developer, Designer, QA, DevOps)
+- Manage and coordinate AI agents (CEO, CMO, CTO, Developer, Designer, QA, DevOps)
 - Run SEO campaigns (blog generation, backlink outreach, rank monitoring)
+- Run lead generation via Money Runner (multi-platform freelance engine)
 - Monitor Vercel deployments and GitHub repositories
 - Execute cron jobs for automated tasks
 - Analyze website performance via Lighthouse/PageSpeed
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           contents: [
             { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-            { role: "model", parts: [{ text: "Understood. I am JARVIS, ready to assist with GravityClaw operations. How can I help?" }] },
+            { role: "model", parts: [{ text: "Understood. I am the GravityClaw agent, ready to assist with operations. How can I help?" }] },
             { role: "user", parts: [{ text: message }] },
           ],
           generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },

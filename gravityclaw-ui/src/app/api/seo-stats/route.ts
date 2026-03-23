@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 
 const GITHUB_PAT = process.env.GITHUB_PAT || "";
-const GITHUB_OWNER = "Botfather90";
-const GITHUB_REPO = "digiton-jarvis";
+const GITHUB_OWNER = process.env.GITHUB_OWNER || "Botfather90";
+const GITHUB_REPO = process.env.GITHUB_REPO || "digiton-jarvis";
+const WEBSITE_REPO = process.env.WEBSITE_REPO || "Digiton.ai";
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_API_KEY || "";
-const TARGET_URL = "https://www.digiton.ai";
+const TARGET_URL = process.env.TARGET_WEBSITE_URL || "https://www.digiton.ai";
 
 interface RankEntry {
   date: string;
@@ -60,7 +61,7 @@ async function fetchBlogCount(): Promise<number> {
   if (!GITHUB_PAT) return 0;
   try {
     const r = await fetch(
-      `https://api.github.com/repos/${GITHUB_OWNER}/Digiton.ai/contents/public/blog`,
+      `https://api.github.com/repos/${GITHUB_OWNER}/${WEBSITE_REPO}/contents/public/blog`,
       { headers: { Authorization: `token ${GITHUB_PAT}`, Accept: "application/vnd.github.v3+json" } }
     );
     if (!r.ok) return 0;
